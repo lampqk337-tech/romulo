@@ -15,6 +15,7 @@ background: linear-gradient(to bottom, #87CEEB, #4fa3d1);
 text-align:center;
 padding-top:60px;
 }
+
 #site{display:none;}
 
 #layout{
@@ -49,79 +50,91 @@ justify-content:center;
 flex-direction:column;
 }
 
+/* bolhas */
 .bolha{
-width:20px;height:20px;
+width:20px;
+height:20px;
 background:rgba(255,255,255,0.6);
 border-radius:50%;
 position:absolute;
-transition:0.2s;
 }
 
-.desenho{
-width:6px;height:6px;
-background:black;
+/* gato */
+#gato{
 position:absolute;
-border-radius:50%;
+bottom:60px;
+right:10px;
+width:90px;
+cursor:pointer;
+}
+
+/* saco */
+#saco{
+position:absolute;
+bottom:80px;
+left:50%;
+transform:translateX(-50%);
+width:90px;
+display:none;
+cursor:pointer;
 }
 </style>
 
 <script>
+let conteudo;
+
 let bolhasAtivas = 0;
 let maxBolhas = 60;
 let podeTempestade = true;
 
-/* desenho */
-let desenhando = false;
-let modoBorracha = false;
+let somGato = new Audio("cat.mp3");
+let somPop = new Audio("pop.mp3");
+let somImpacto = new Audio("impacto.mp3");
 
-/* início */
+somGato.volume=0.5;
+somPop.volume=0.4;
+somImpacto.volume=0.5;
+
+let musica = new Audio("music.mp3");
+musica.loop=true;
+let musicaLigada=false;
+
+/* INÍCIO LIMPO */
 function iniciar(){
-let t = document.getElementById("texto");
+let t=document.getElementById("texto");
 
-t.innerText = "Segure a respiração...";
+t.innerText="Segure a respiração...";
 
 setTimeout(()=>{
-t.innerText = "Agora solte a respiração...";
+t.innerText="Agora solte a respiração...";
 },2000);
 
 setTimeout(()=>{
 document.getElementById("inicio").style.display="none";
 document.getElementById("site").style.display="block";
+
+conteudo=document.getElementById("conteudo");
+
+initGato();
 },4000);
 }
 
-/* limpar */
-function limpar(){
-conteudo.innerHTML="<h2>Bem-vindo</h2><p>Escolha um modo relaxante</p>";
-conteudo.onclick=null;
-conteudo.onmousemove=null;
-conteudo.ontouchmove=null;
-conteudo.onmousedown=null;
-conteudo.onmouseup=null;
-conteudo.ontouchstart=null;
-conteudo.ontouchend=null;
+/* GATO */
+function initGato(){
+let gato=document.getElementById("gato");
 
-if(window.intervaloAtual){
-clearInterval(window.intervaloAtual);
-}
+gato.onclick=()=>{
+somGato.currentTime=0;
+somGato.play();
 
-bolhasAtivas = 0;
-}
-
-/* posição */
-function pegarPos(e){
-let touch = e.touches ? e.touches[0] : e;
-let rect = conteudo.getBoundingClientRect();
-
-return {
-x: touch.clientX - rect.left,
-y: touch.clientY - rect.top
+gato.style.transform="scale(1.15)";
+setTimeout(()=>gato.style.transform="scale(1)",150);
 };
 }
 
-/* bolhas */
+/* BOLHAS */
 function criarBolha(x,y){
-if(bolhasAtivas > maxBolhas) return;
+if(bolhasAtivas>=maxBolhas) return;
 
 bolhasAtivas++;
 
@@ -131,151 +144,116 @@ b.style.left=x+"px";
 b.style.top=y+"px";
 conteudo.appendChild(b);
 
-b.onclick = function(ev){
-ev.stopPropagation();
+b.onclick=(e)=>{
+e.stopPropagation();
 
-try{
-let som = new Audio("pop.mp3");
-som.volume = 0.4;
-som.play();
-}catch{}
+somPop.currentTime=0;
+somPop.play();
 
-b.style.transform="scale(2)";
-b.style.opacity="0";
-
-setTimeout(()=>{
 b.remove();
 bolhasAtivas--;
-},200);
 };
 
-let subir=setInterval(()=>{
-y-=1;
+let up=setInterval(()=>{
+y--;
 b.style.top=y+"px";
 
 if(y<50){
 b.remove();
-clearInterval(subir);
+clearInterval(up);
 bolhasAtivas--;
 }
 },30);
 }
 
 function bolhas(){
-limpar();
-
-conteudo.onclick = function(e){
-let pos = pegarPos(e);
-criarBolha(pos.x,pos.y);
+conteudo.onclick=(e)=>{
+let r=conteudo.getBoundingClientRect();
+criarBolha(e.clientX-r.left,e.clientY-r.top);
 };
 }
 
-/* tempestade */
+/* TEMPESTADE */
 function tempestade(){
 if(!podeTempestade) return;
+podeTempestade=false;
 
-podeTempestade = false;
-
-limpar();
-
-window.intervaloAtual = setInterval(()=>{
+let loop=setInterval(()=>{
 for(let i=0;i<3;i++){
-let x = Math.random()*conteudo.clientWidth;
-let y = conteudo.clientHeight;
-criarBolha(x,y);
+criarBolha(Math.random()*conteudo.clientWidth,conteudo.clientHeight);
 }
 },200);
 
 setTimeout(()=>{
-podeTempestade = true;
+clearInterval(loop);
+podeTempestade=true;
 },5000);
 }
 
-/* DESENHAR MELHORADO */
-function desenhar(){
-limpar();
+/* SACO */
+let sacoAtivo=false;
 
-/* criar botão */
-conteudo.innerHTML = `
-<h2>Modo Desenho</h2>
-<button onclick="modoBorracha=false">Caneta</button>
-<button onclick="modoBorracha=true">Borracha</button>
-`;
+function toggleSaco(){
+let s=document.getElementById("saco");
 
-function desenharPonto(e){
-if(!desenhando) return;
-
-let pos = pegarPos(e);
-
-/* borracha */
-if(modoBorracha){
-let elementos = document.querySelectorAll(".desenho");
-elementos.forEach(el=>{
-let x = parseInt(el.style.left);
-let y = parseInt(el.style.top);
-
-if(Math.abs(x - pos.x) < 10 && Math.abs(y - pos.y) < 10){
-el.remove();
-}
-});
-return;
+sacoAtivo=!sacoAtivo;
+s.style.display=sacoAtivo?"block":"none";
+document.getElementById("btnSaco").innerText=
+sacoAtivo?"Tirar saco de pancadas":"Colocar saco de pancadas";
 }
 
-/* desenhar */
-let d=document.createElement("div");
-d.className="desenho";
-d.style.left=pos.x+"px";
-d.style.top=pos.y+"px";
+function bater(){
+let s=document.getElementById("saco");
 
-conteudo.appendChild(d);
+somImpacto.currentTime=0;
+somImpacto.play();
+
+s.style.transform="translateX(-50%) scale(0.9)";
+setTimeout(()=>s.style.transform="translateX(-50%) scale(1)",120);
 }
 
-/* mouse */
-conteudo.onmousedown = ()=>desenhando=true;
-conteudo.onmouseup = ()=>desenhando=false;
-conteudo.onmouseleave = ()=>desenhando=false;
-conteudo.onmousemove = desenharPonto;
+/* MÚSICA */
+function toggleMusica(){
+musicaLigada=!musicaLigada;
 
-/* mobile */
-conteudo.ontouchstart = ()=>desenhando=true;
-conteudo.ontouchend = ()=>desenhando=false;
-conteudo.ontouchmove = desenharPonto;
+if(musicaLigada){
+musica.play();
+document.getElementById("btnMusica").innerText="Parar música";
+}else{
+musica.pause();
+document.getElementById("btnMusica").innerText="Tocar música";
+}
 }
 </script>
-
 </head>
 
 <body>
 
 <div id="inicio">
-<h1 id="texto">Clique para começar</h1>
+<h1 id="texto">Bem-vindo</h1>
 <button onclick="iniciar()">Começar</button>
 </div>
 
 <div id="site">
-
 <div id="layout">
 
 <div id="menu">
 <button onclick="bolhas()">Bolhas</button>
-<button onclick="tempestade()">Tempestade de Bolhas</button>
-<button onclick="desenhar()">Desenhar</button>
-
-<audio id="som" loop>
-<source src="musica.mp3" type="audio/mpeg">
-</audio>
-
-<button onclick="document.getElementById('som').play()">Música</button>
-<button onclick="document.getElementById('som').pause()">Parar</button>
+<button onclick="tempestade()">Tempestades de bolhas</button>
+<button id="btnSaco" onclick="toggleSaco()">Colocar saco de pancadas</button>
+<button id="btnMusica" onclick="toggleMusica()">Tocar música</button>
 </div>
 
 <div id="conteudo">
-<h2>Bem-vindo</h2>
-<p>Escolha um modo relaxante</p>
-</div>
+
+<h2>Escolha um modo</h2>
+
+<img id="saco" src="saco.png" onclick="bater()">
+<img id="gato" src="cat.png">
 
 </div>
 
+</div>
 </div>
 
 </body>
