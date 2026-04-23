@@ -9,14 +9,31 @@ body{
 margin:0;
 font-family:Arial;
 background: linear-gradient(to bottom, #87CEEB, #4fa3d1);
+overflow:hidden;
+transition:1s;
+color:white;
 }
 
-#inicio, #site{
+.noite{
+background: linear-gradient(to bottom, #0a0f2c, #1a2a6c);
+}
+
+#inicio,#site{
 text-align:center;
 padding-top:60px;
 }
 
-#site{display:none;}
+#site{
+display:none;
+opacity:0;
+transform:scale(1.05);
+transition:1s;
+}
+
+#site.ativo{
+opacity:1;
+transform:scale(1);
+}
 
 #layout{
 display:flex;
@@ -26,7 +43,6 @@ height:100vh;
 
 #menu{
 background:#222;
-color:white;
 padding:10px;
 display:flex;
 flex-wrap:wrap;
@@ -38,6 +54,17 @@ gap:5px;
 padding:8px;
 border:none;
 border-radius:5px;
+cursor:pointer;
+}
+
+#intensidadeBox{
+display:none;
+position:absolute;
+top:70px;
+right:10px;
+background:rgba(0,0,0,0.6);
+padding:10px;
+border-radius:8px;
 }
 
 #conteudo{
@@ -50,25 +77,43 @@ justify-content:center;
 flex-direction:column;
 }
 
-/* bolhas */
-.bolha{
-width:20px;
-height:20px;
-background:rgba(255,255,255,0.6);
-border-radius:50%;
-position:absolute;
+#conteudo h2{
+pointer-events:none;
+transition:0.5s;
 }
 
-/* gato */
+.bolha{
+border-radius:50%;
+position:absolute;
+cursor:pointer;
+transition:0.25s;
+}
+
+.particula{
+position:absolute;
+width:6px;
+height:6px;
+background:rgba(255,255,255,0.6);
+border-radius:50%;
+pointer-events:none;
+}
+
+.estrela{
+position:absolute;
+width:2px;
+height:2px;
+background:white;
+opacity:0.8;
+}
+
 #gato{
 position:absolute;
 bottom:60px;
 right:10px;
 width:90px;
-cursor:pointer;
+cursor:grab;
 }
 
-/* saco */
 #saco{
 position:absolute;
 bottom:80px;
@@ -78,108 +123,266 @@ width:90px;
 display:none;
 cursor:pointer;
 }
+
+#respiracaoBox{
+display:flex;
+flex-direction:column;
+align-items:center;
+justify-content:center;
+transition:1s;
+}
+
+#circulo{
+width:120px;
+height:120px;
+border-radius:50%;
+border:4px solid rgba(255,255,255,0.7);
+margin-bottom:20px;
+transition:2s ease-in-out;
+}
+
+#textoRespira{
+font-size:32px;
+font-weight:bold;
+transition:0.5s;
+}
+
+.destaque{
+animation:respiraAnim 1s ease;
+}
+
+@keyframes respiraAnim{
+0%{opacity:0; transform:scale(0.8);}
+100%{opacity:1; transform:scale(1);}
+}
 </style>
 
 <script>
 let conteudo;
+let bolhas=[];
+let maxBolhas=60;
+let podeTempestade=true;
+let intensidade=2;
 
-let bolhasAtivas = 0;
-let maxBolhas = 60;
-let podeTempestade = true;
+let somBolha, somImpacto, somGato, musica;
 
-let somGato = new Audio("cat.mp3");
-let somPop = new Audio("pop.mp3");
-let somImpacto = new Audio("impacto.mp3");
+let mouseX=0,mouseY=0;
+let estrelasLoop=null;
 
-somGato.volume=0.5;
-somPop.volume=0.4;
-somImpacto.volume=0.5;
+function esconderTexto(){
+let txt=document.querySelector("#conteudo h2");
+if(txt) txt.style.opacity="0";
+}
 
-let musica = new Audio("music.mp3");
-musica.loop=true;
-let musicaLigada=false;
+function iniciarRespiracao(){
+let txt=document.getElementById("textoRespira");
+let c=document.getElementById("circulo");
 
-/* INÍCIO LIMPO */
-function iniciar(){
-let t=document.getElementById("texto");
+function animarTexto(texto, cor){
+txt.innerText = texto;
+txt.style.color = cor;
+txt.classList.remove("destaque");
+void txt.offsetWidth;
+txt.classList.add("destaque");
+}
 
-t.innerText="Segure a respiração...";
+let etapas = [
+()=>{ animarTexto("Puxe a respiração", "#4dd0ff"); c.style.transform="scale(1.6)"; },
+()=>{ animarTexto("Segure a respiração", "#ffd54f"); },
+()=>{ animarTexto("Solte a respiração", "#81ff9b"); c.style.transform="scale(1)"; },
+()=>{ animarTexto("Segure a respiração", "#ffd54f"); }
+];
 
-setTimeout(()=>{
-t.innerText="Agora solte a respiração...";
+let i = 0;
+
+let intervalo = setInterval(()=>{
+etapas[i]();
+i = (i + 1) % etapas.length;
 },2000);
 
 setTimeout(()=>{
+clearInterval(intervalo);
+
+let box=document.getElementById("respiracaoBox");
+box.style.opacity="0";
+box.style.transform="scale(1.2)";
+
+setTimeout(()=>entrarSite(),800);
+
+},8000);
+}
+
+function entrarSite(){
 document.getElementById("inicio").style.display="none";
-document.getElementById("site").style.display="block";
+
+let site=document.getElementById("site");
+site.style.display="block";
+
+setTimeout(()=>site.classList.add("ativo"),50);
 
 conteudo=document.getElementById("conteudo");
 
+somBolha=document.getElementById("somBolha");
+somImpacto=document.getElementById("somImpacto");
+somGato=document.getElementById("somGato");
+musica=document.getElementById("musica");
+
+conteudo.addEventListener("mousemove",(e)=>{
+let r=conteudo.getBoundingClientRect();
+mouseX=e.clientX-r.left;
+mouseY=e.clientY-r.top;
+});
+
 initGato();
-},4000);
+loopAnimacao();
 }
 
-/* GATO */
 function initGato(){
 let gato=document.getElementById("gato");
 
-gato.onclick=()=>{
-somGato.currentTime=0;
-somGato.play();
+let arrastando=false,offsetX=0,offsetY=0;
 
-gato.style.transform="scale(1.15)";
-setTimeout(()=>gato.style.transform="scale(1)",150);
+gato.onclick=(e)=>{
+e.stopPropagation();
+somGato.currentTime=0;
+somGato.play().catch(()=>{});
 };
+
+gato.onmousedown=(e)=>{
+arrastando=true;
+offsetX=e.clientX-gato.getBoundingClientRect().left;
+offsetY=e.clientY-gato.getBoundingClientRect().top;
+};
+
+document.onmousemove=(e)=>{
+if(!arrastando)return;
+gato.style.left=(e.clientX-offsetX)+"px";
+gato.style.top=(e.clientY-offsetY)+"px";
+gato.style.bottom="auto";
+gato.style.right="auto";
+};
+
+document.onmouseup=()=>arrastando=false;
 }
 
-/* BOLHAS */
 function criarBolha(x,y){
-if(bolhasAtivas>=maxBolhas) return;
+if(bolhas.length>=maxBolhas)return;
 
-bolhasAtivas++;
+let tamanho=28+Math.random()*20;
 
 let b=document.createElement("div");
 b.className="bolha";
+
+b.style.width=tamanho+"px";
+b.style.height=tamanho+"px";
+b.style.background="rgba(255,255,255,0.5)";
 b.style.left=x+"px";
 b.style.top=y+"px";
+
 conteudo.appendChild(b);
+
+let bolha={el:b,x:x,y:y,vel:0.6};
 
 b.onclick=(e)=>{
 e.stopPropagation();
 
-somPop.currentTime=0;
-somPop.play();
+somBolha.currentTime=0;
+somBolha.play().catch(()=>{});
 
+respingar(x,y);
+
+b.style.transform="scale(2.5)";
+b.style.opacity="0";
+
+setTimeout(()=>{
 b.remove();
-bolhasAtivas--;
+bolhas=bolhas.filter(obj=>obj!==bolha);
+},250);
 };
 
-let up=setInterval(()=>{
-y--;
-b.style.top=y+"px";
-
-if(y<50){
-b.remove();
-clearInterval(up);
-bolhasAtivas--;
-}
-},30);
+bolhas.push(bolha);
 }
 
-function bolhas(){
+function respingar(x,y){
+for(let i=0;i<4;i++){
+let p=document.createElement("div");
+p.className="particula";
+
+p.style.left=x+"px";
+p.style.top=y+"px";
+
+conteudo.appendChild(p);
+
+let vx=(Math.random()-0.5)*2;
+let vy=Math.random()*2+1;
+
+let t=0;
+
+let anim=setInterval(()=>{
+t+=0.08;
+
+x+=vx;
+y+=vy;
+vy+=0.05;
+
+p.style.left=x+"px";
+p.style.top=y+"px";
+p.style.opacity=1-t;
+
+if(t>1){
+clearInterval(anim);
+p.remove();
+}
+},16);
+}
+}
+
+function loopAnimacao(){
+requestAnimationFrame(loopAnimacao);
+
+for(let i=0;i<bolhas.length;i++){
+let b=bolhas[i];
+
+b.y-=b.vel;
+
+let dx=b.x-mouseX;
+let dy=b.y-mouseY;
+let dist=Math.sqrt(dx*dx+dy*dy);
+
+if(dist<120 && dist>0){
+let forca=(120-dist)/120;
+b.x+=(dx/dist)*forca*2;
+b.y+=(dy/dist)*forca*2;
+}
+
+b.el.style.left=b.x+"px";
+b.el.style.top=b.y+"px";
+
+if(b.y<-40){
+b.el.remove();
+bolhas.splice(i,1);
+i--;
+}
+}
+}
+
+function bolhasModo(){
 conteudo.onclick=(e)=>{
 let r=conteudo.getBoundingClientRect();
 criarBolha(e.clientX-r.left,e.clientY-r.top);
 };
+document.getElementById("intensidadeBox").style.display="none";
+esconderTexto();
 }
 
-/* TEMPESTADE */
 function tempestade(){
-if(!podeTempestade) return;
+document.getElementById("intensidadeBox").style.display="block";
+
+if(!podeTempestade)return;
 podeTempestade=false;
 
 let loop=setInterval(()=>{
-for(let i=0;i<3;i++){
+for(let i=0;i<intensidade;i++){
 criarBolha(Math.random()*conteudo.clientWidth,conteudo.clientHeight);
 }
 },200);
@@ -188,40 +391,66 @@ setTimeout(()=>{
 clearInterval(loop);
 podeTempestade=true;
 },5000);
+
+esconderTexto();
 }
 
-/* SACO */
-let sacoAtivo=false;
+function mudarIntensidade(v){
+intensidade=parseInt(v);
+}
+
+function noite(){
+document.body.classList.toggle("noite");
+
+if(document.body.classList.contains("noite")){
+if(estrelasLoop) return;
+
+estrelasLoop=setInterval(()=>{
+let s=document.createElement("div");
+s.className="estrela";
+
+s.style.left=Math.random()*window.innerWidth+"px";
+s.style.top=Math.random()*window.innerHeight+"px";
+
+conteudo.appendChild(s);
+
+setTimeout(()=>s.remove(),2000);
+
+},120);
+}else{
+clearInterval(estrelasLoop);
+estrelasLoop=null;
+}
+}
 
 function toggleSaco(){
 let s=document.getElementById("saco");
-
-sacoAtivo=!sacoAtivo;
-s.style.display=sacoAtivo?"block":"none";
-document.getElementById("btnSaco").innerText=
-sacoAtivo?"Tirar saco de pancadas":"Colocar saco de pancadas";
+s.style.display=s.style.display==="block"?"none":"block";
+esconderTexto();
 }
 
 function bater(){
+somImpacto.currentTime=0;
+somImpacto.play().catch(()=>{});
+
 let s=document.getElementById("saco");
 
-somImpacto.currentTime=0;
-somImpacto.play();
-
-s.style.transform="translateX(-50%) scale(0.9)";
-setTimeout(()=>s.style.transform="translateX(-50%) scale(1)",120);
+s.animate([
+{transform:"translateX(-50%) rotate(0deg)"},
+{transform:"translateX(-50%) rotate(10deg)"},
+{transform:"translateX(-50%) rotate(-8deg)"},
+{transform:"translateX(-50%) rotate(0deg)"}
+],{duration:400});
 }
 
-/* MÚSICA */
 function toggleMusica(){
-musicaLigada=!musicaLigada;
+let btn=document.getElementById("btnMusica");
 
-if(musicaLigada){
-musica.play();
-document.getElementById("btnMusica").innerText="Parar música";
+if(musica.paused){
+musica.play().then(()=>{btn.innerText="Parar música";}).catch(()=>{});
 }else{
 musica.pause();
-document.getElementById("btnMusica").innerText="Tocar música";
+btn.innerText="Tocar música";
 }
 }
 </script>
@@ -229,23 +458,36 @@ document.getElementById("btnMusica").innerText="Tocar música";
 
 <body>
 
+<audio id="somBolha" src="pop.mp3"></audio>
+<audio id="somImpacto" src="impacto.mp3"></audio>
+<audio id="somGato" src="cat.mp3"></audio>
+<audio id="musica" src="music.mp3" loop></audio>
+
 <div id="inicio">
-<h1 id="texto">Bem-vindo</h1>
-<button onclick="iniciar()">Começar</button>
+<div id="respiracaoBox">
+<div id="circulo"></div>
+<div id="textoRespira">Prepare-se...</div>
+<button onclick="iniciarRespiracao()">Começar</button>
+</div>
 </div>
 
 <div id="site">
 <div id="layout">
 
 <div id="menu">
-<button onclick="bolhas()">Bolhas</button>
-<button onclick="tempestade()">Tempestades de bolhas</button>
-<button id="btnSaco" onclick="toggleSaco()">Colocar saco de pancadas</button>
-<button id="btnMusica" onclick="toggleMusica()">Tocar música</button>
+<button onclick="bolhasModo()">Bolhas</button>
+<button onclick="tempestade()">Tempestade de bolhas</button>
+<button onclick="toggleSaco()">Saco de pancadas</button>
+<button onclick="toggleMusica()" id="btnMusica">Tocar música</button>
+<button onclick="noite()">Modo noite</button>
+</div>
+
+<div id="intensidadeBox">
+Intensidade:<br>
+<input type="range" min="1" max="6" value="2" onchange="mudarIntensidade(this.value)">
 </div>
 
 <div id="conteudo">
-
 <h2>Escolha um modo</h2>
 
 <img id="saco" src="saco.png" onclick="bater()">
